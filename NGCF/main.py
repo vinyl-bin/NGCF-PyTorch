@@ -15,9 +15,11 @@ import warnings
 warnings.filterwarnings('ignore')
 from time import time
 
-
+# 파일 직접 실행해야 돌아가도록 설정
 if __name__ == '__main__':
 
+    # args 객체에서 device라는 새로운 변수 할당 및 초기화
+    # 옵션에서 입력한 번호의 GPU 사용 
     args.device = torch.device('cuda:' + str(args.gpu_id))
 
     plain_adj, norm_adj, mean_adj = data_generator.get_adj_mat()

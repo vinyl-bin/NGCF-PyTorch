@@ -5,10 +5,15 @@ Wang Xiang et al. Neural Graph Collaborative Filtering. In SIGIR 2019.
 
 @author: Xiang Wang (xiangwang@u.nus.edu)
 '''
+# 명령어 옵션 파싱하는 파일
 import argparse
 
 def parse_args():
+    # parser 객체 생성
     parser = argparse.ArgumentParser(description="Run NGCF.")
+    
+    # nargs='?' 있으면 옵션안쓰기O, 옵션만쓰기O, 옵션+값쓰기O
+    # nargs='?' 없으면 옵션안쓰기O, 옵션만쓰기X, 옵션+값쓰기O
     parser.add_argument('--weights_path', nargs='?', default='model/',
                         help='Store model path.')
     parser.add_argument('--data_path', nargs='?', default='../Data/',
@@ -62,4 +67,4 @@ def parse_args():
 
     parser.add_argument('--report', type=int, default=0,
                         help='0: Disable performance report w.r.t. sparsity levels, 1: Show performance report w.r.t. sparsity levels')
-    return parser.parse_args()
+    return parser.parse_args() # 새로운 객체(args) 생성

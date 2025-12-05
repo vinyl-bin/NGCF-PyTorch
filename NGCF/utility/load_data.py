@@ -18,39 +18,42 @@ class Data(object):
         train_file = path + '/train.txt'
         test_file = path + '/test.txt'
 
-        #get number of users and items
-        self.n_users, self.n_items = 0, 0
-        self.n_train, self.n_test = 0, 0
-        self.neg_pools = {}
+        #get number of users and items 변수 초기화
+        self.n_users, self.n_items = 0, 0   # 사용자 수, 아이템 수
+        self.n_train, self.n_test = 0, 0    # 학습 아이템 데이터 수, 테스트 아이템 데이터 수
+        self.neg_pools = {}                 # 부정 ??
+        self.exist_users = []               # 존재하는 유저아이디 리스트
 
-        self.exist_users = []
-
+        # 학습 데이터 처리
         with open(train_file) as f:
-            for l in f.readlines():
-                if len(l) > 0:
-                    l = l.strip('\n').split(' ')
-                    items = [int(i) for i in l[1:]]
-                    uid = int(l[0])
+            for l in f.readlines():  # 한 줄씩 처리
+                if len(l) > 0:       # 공백이 아닐 때 
+                    l = l.strip('\n').split(' ') # 양 끝 개행문자 삭제, 공백을 기준으로 쪼개서 리스트로
+                    items = [int(i) for i in l[1:]] # 아이템은 인덱스 1부터
+                    uid = int(l[0])                 # 유저아이디는 인덱스 0
                     self.exist_users.append(uid)
-                    self.n_items = max(self.n_items, max(items))
-                    self.n_users = max(self.n_users, uid)
-                    self.n_train += len(items)
+                    self.n_items = max(self.n_items, max(items)) # 기존 아이템 수와 현재 아이템 수 더 큰 걸 저장
+                    self.n_users = max(self.n_users, uid) # 기존 유저수와 현재 유저 수 중 더 큰 걸 저장 
+                    self.n_train += len(items) # 학습 아이템수만 누적
 
+        # 테스트 데이터 처리  -> 왜 테스트에서는 max uid를 구하지 않는지 -> 테스트와 학습 데이터 uid 개수가 동일함
         with open(test_file) as f:
             for l in f.readlines():
                 if len(l) > 0:
-                    l = l.strip('\n')
+                    l = l.strip('\n') # 양 끝 개행문자 삭제
                     try:
-                        items = [int(i) for i in l.split(' ')[1:]]
-                    except Exception:
+                        items = [int(i) for i in l.split(' ')[1:]] # 공백을 기준으로 쪼갠 후 리스트로 
+                    except Exception:   # 모든 오류 무시 후 continue 처리
                         continue
-                    self.n_items = max(self.n_items, max(items))
-                    self.n_test += len(items)
-        self.n_items += 1
-        self.n_users += 1
+                    self.n_items = max(self.n_items, max(items))  # 기존 아이템 수와 현재 아이템 수 더 큰 걸 저장
+                    self.n_test += len(items) # 테스트 아이템수만 누적
+        self.n_items += 1  # 아이템 id는 0부터 시작하므로 max 아이템 id에서 1을 더해야 실제 전체 아이템 id의 개수가 나옴
+        self.n_users += 1  # uid가 0부터 시작하므로 max uid에서 1를 더해야 실제 전체 uid 개수가 나옴
 
+        # 위에서 구한 변수들의 통계값 출력
         self.print_statistics()
 
+        # 빈 희소행렬 (n_users X n_items) 크기로 생성
         self.R = sp.dok_matrix((self.n_users, self.n_items), dtype=np.float32)
 
         self.train_items, self.test_set = {}, {}

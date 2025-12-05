@@ -13,8 +13,9 @@ import heapq
 
 cores = multiprocessing.cpu_count() // 2
 
+# 명령어에 명시된 옵션들 저장된 객체
 args = parse_args()
-Ks = eval(args.Ks)
+Ks = eval(args.Ks)  # --Ks 옵션의 값 -> Output sizes of every layer
 
 data_generator = Data(path=args.data_path + args.dataset, batch_size=args.batch_size)
 USR_NUM, ITEM_NUM = data_generator.n_users, data_generator.n_items
