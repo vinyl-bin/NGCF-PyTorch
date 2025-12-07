@@ -11,6 +11,8 @@ import scipy.sparse as sp
 from time import time
 
 class Data(object):
+
+    # 데이터 읽고 희소행렬로 저장
     def __init__(self, path, batch_size):
         self.path = path
         self.batch_size = batch_size
@@ -53,9 +55,10 @@ class Data(object):
         # 위에서 구한 변수들의 통계값 출력
         self.print_statistics()
 
-        # 빈 희소행렬 (n_users X n_items) 크기로 생성
+        # 빈 희소행렬 (n_users X n_items) 크기로 생성 -> 아마도 train용 희소행렬로 예상됨
         self.R = sp.dok_matrix((self.n_users, self.n_items), dtype=np.float32)
 
+        # uid인 key와 item인 value로 저장할 예정 
         self.train_items, self.test_set = {}, {}
         with open(train_file) as f_train:
             with open(test_file) as f_test:
@@ -66,10 +69,12 @@ class Data(object):
                     items = [int(i) for i in l.split(' ')]
                     uid, train_items = items[0], items[1:]
 
+                    # uid 행과 item 열 부분에 1.0 표시
                     for i in train_items:
                         self.R[uid, i] = 1.
                         # self.R[uid][i] = 1
 
+                    # uid인 key와 item인 value로 저장
                     self.train_items[uid] = train_items
 
                 for l in f_test.readlines():
@@ -81,9 +86,13 @@ class Data(object):
                         continue
 
                     uid, test_items = items[0], items[1:]
+                    # uid인 key와 item인 value로 저장
                     self.test_set[uid] = test_items
 
+    # 캐싱된 인접행렬 가져오는 함수
     def get_adj_mat(self):
+
+        # 이미 캐싱된 게 있을 때
         try:
             t1 = time()
             adj_mat = sp.load_npz(self.path + '/s_adj_mat.npz')
@@ -91,6 +100,7 @@ class Data(object):
             mean_adj_mat = sp.load_npz(self.path + '/s_mean_adj_mat.npz')
             print('already load adj matrix', adj_mat.shape, time() - t1)
 
+        # 만들어진게 없을 때 새로 인접 행렬 만들고 저장(캐싱된 게 없을 때)
         except Exception:
             adj_mat, norm_adj_mat, mean_adj_mat = self.create_adj_mat()
             sp.save_npz(self.path + '/s_adj_mat.npz', adj_mat)
@@ -98,27 +108,49 @@ class Data(object):
             sp.save_npz(self.path + '/s_mean_adj_mat.npz', mean_adj_mat)
         return adj_mat, norm_adj_mat, mean_adj_mat
 
+    # 새로운 인접행렬(모든 사용자와 아이템, 사용자와 사용자, 아이템과 아이템의 관계) 만드는 함수
     def create_adj_mat(self):
         t1 = time()
+        # 빈 희소행렬 (self.n_users + self.n_items X self.n_users + self.n_items) 크기로 생성
+        # 전체 그래프의 노드 수 = 사용자 수 + 아이템 수
         adj_mat = sp.dok_matrix((self.n_users + self.n_items, self.n_users + self.n_items), dtype=np.float32)
+        
+        # 행렬 값 할당을 빠르게 하기 위해 LIL(List of Lists) 형식으로 변환
         adj_mat = adj_mat.tolil()
+        
+        # 사용자-아이템 상호작용 행렬 R도 LIL로 변환
         R = self.R.tolil()
 
+        # 빈 adj_mat 희소행렬의 n_users들의 행으로만 이루어져 있고 n_items 열로만 이루어져 있는 부분을 R로 치환
         adj_mat[:self.n_users, self.n_users:] = R
+        # adj_mat 희소행렬의 n_items들의 행으로만 이루어져 있고 n_users 열로만 이루어져 있는 부분을 R의 전치행렬로 치환
         adj_mat[self.n_users:, :self.n_users] = R.T
+        # 인접 행렬 구성:
+        # |   0   |   R   |
+        # |-------|-------|
+        # |  R^T  |   0   |
+        
+
+        # 다시 DOK 형식으로 변환
         adj_mat = adj_mat.todok()
         print('already create adjacency matrix', adj_mat.shape, time() - t1)
 
         t2 = time()
 
+        # 정규화 진행
         def mean_adj_single(adj):
-            # D^-1 * A
+            # 행 단위 정규화 (D^-1 * A)
+            # rowsum: 각 행의 원소 합 (차수, Degree)
             rowsum = np.array(adj.sum(1))
 
+            # 차수의 역수 계산 (1/Degree)
             d_inv = np.power(rowsum, -1).flatten()
+            # 무한대 값(0으로 나눈 경우) 처리
             d_inv[np.isinf(d_inv)] = 0.
+            # 대각 행렬 생성
             d_mat_inv = sp.diags(d_inv)
 
+            # 정규화된 행렬 계산: D^-1 * A
             norm_adj = d_mat_inv.dot(adj)
             # norm_adj = adj.dot(d_mat_inv)
             print('generate single-normalized adjacency matrix.')
@@ -144,6 +176,7 @@ class Data(object):
             print('check normalized adjacency matrix whether equal to this laplacian matrix.')
             return temp
 
+        # 정규화 진행 시 단위행렬 더해서 주대각선이 1이 되도록 설정하여 self-loop 포함함
         norm_adj_mat = mean_adj_single(adj_mat + sp.eye(adj_mat.shape[0]))
         # norm_adj_mat = normalized_adj_single(adj_mat + sp.eye(adj_mat.shape[0]))
         mean_adj_mat = mean_adj_single(adj_mat)
@@ -161,10 +194,13 @@ class Data(object):
 
     def sample(self):
         if self.batch_size <= self.n_users:
+            # 유저가 배치 크기보다 크므로 중복되지 않게 유저 샘플링
             users = rd.sample(self.exist_users, self.batch_size)
         else:
+            # 유저가 배치크기보다 작으므로 중복되게 유저 샘플링
             users = [rd.choice(self.exist_users) for _ in range(self.batch_size)]
 
+        # num 크기만큼 user가 본 아이템을 고름
         def sample_pos_items_for_u(u, num):
             # sample num pos items for u-th user
             pos_items = self.train_items[u]
@@ -180,6 +216,7 @@ class Data(object):
                     pos_batch.append(pos_i_id)
             return pos_batch
 
+        # num 크기만큼 user가 보지 않은 아이템을 고름
         def sample_neg_items_for_u(u, num):
             # sample num neg items for u-th user
             neg_items = []
@@ -187,6 +224,7 @@ class Data(object):
                 if len(neg_items) == num:
                     break
                 neg_id = np.random.randint(low=0, high=self.n_items,size=1)[0]
+                # 유저가 보지 않은 아이템이여야하고 배치 리스트에 중복되지 않은 아이템이어야 함
                 if neg_id not in self.train_items[u] and neg_id not in neg_items:
                     neg_items.append(neg_id)
             return neg_items
@@ -197,6 +235,7 @@ class Data(object):
 
         pos_items, neg_items = [], []
         for u in users:
+            # 각 사용자에 대해 긍정 아이템 1개, 부정 아이템 1개 샘플링
             pos_items += sample_pos_items_for_u(u, 1)
             neg_items += sample_neg_items_for_u(u, 1)
 

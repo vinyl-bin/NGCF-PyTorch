@@ -17,8 +17,11 @@ cores = multiprocessing.cpu_count() // 2
 args = parse_args()
 Ks = eval(args.Ks)  # --Ks 옵션의 값 -> Output sizes of every layer
 
+# 데이터 읽고 희소행렬로 저장된 객체
 data_generator = Data(path=args.data_path + args.dataset, batch_size=args.batch_size)
+# 사용자수, 아이템수
 USR_NUM, ITEM_NUM = data_generator.n_users, data_generator.n_items
+# 학습 아이템 데이터 수, 테스트 아이템 데이터 수
 N_TRAIN, N_TEST = data_generator.n_train, data_generator.n_test
 BATCH_SIZE = args.batch_size
 
@@ -27,11 +30,13 @@ def ranklist_by_heapq(user_pos_test, test_items, rating, Ks):
     for i in test_items:
         item_score[i] = rating[i]
 
+    # 상위 K개 아이템 선정 (Heap Queue 알고리즘 사용으로 효율적)
     K_max = max(Ks)
     K_max_item_score = heapq.nlargest(K_max, item_score, key=item_score.get)
 
     r = []
     for i in K_max_item_score:
+        # 추천된 아이템이 실제 테스트셋(사용자가 선호한 아이템)에 있는지 확인 (Hit 여부)
         if i in user_pos_test:
             r.append(1)
         else:
@@ -131,7 +136,8 @@ def test(model, users_to_test, drop_flag=False, batch_test_flag=False):
         user_batch = test_users[start: end]
 
         if batch_test_flag:
-            # batch-item test
+            # batch-item test: 모든 아이템을 한 번에 계산하지 않고 배치 단위로 나누어 계산
+            # 메모리 부족 문제를 방지하기 위함
             n_item_batchs = ITEM_NUM // i_batch_size + 1
             rate_batch = np.zeros(shape=(len(user_batch), ITEM_NUM))
 
@@ -161,7 +167,8 @@ def test(model, users_to_test, drop_flag=False, batch_test_flag=False):
             assert i_count == ITEM_NUM
 
         else:
-            # all-item test
+            # all-item test: 모든 아이템에 대해 한 번에 점수 계산
+            # 아이템 수가 적거나 메모리가 충분할 때 더 빠름
             item_batch = range(ITEM_NUM)
 
             if drop_flag == False:

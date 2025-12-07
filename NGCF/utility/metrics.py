@@ -8,6 +8,7 @@ def recall(rank, ground_truth, N):
 
 def precision_at_k(r, k):
     """Score is precision @ k
+    상위 k개 추천 결과 중 실제로 사용자가 선호하는 아이템의 비율
     Relevance is binary (nonzero is relevant).
     Returns:
         Precision @ k
@@ -15,7 +16,9 @@ def precision_at_k(r, k):
         ValueError: len(r) must be >= k
     """
     assert k >= 1
+    # 상위 k개 아이템만 고려
     r = np.asarray(r)[:k]
+    # 평균 계산 (1: 선호, 0: 비선호 이므로 평균이 곳 비율이 됨)
     return np.mean(r)
 
 
@@ -61,6 +64,7 @@ def dcg_at_k(r, k, method=1):
 
 def ndcg_at_k(r, k, ground_truth, method=1):
     """Score is normalized discounted cumulative gain (ndcg)
+    추천 결과의 순위까지 고려한 점수 (상위권에 맞출수록 점수가 높음)
     Relevance is positive real values.  Can use binary
     as the previous methods.
     Returns:
@@ -69,6 +73,7 @@ def ndcg_at_k(r, k, ground_truth, method=1):
         Low but correct defination
     """
     GT = set(ground_truth)
+    # 이상적인 DCG (IDCG) 계산을 위해 최상의 시나리오 생성
     if len(GT) > k :
         sent_list = [1.0] * k
     else:
@@ -76,12 +81,14 @@ def ndcg_at_k(r, k, ground_truth, method=1):
     dcg_max = dcg_at_k(sent_list, k, method)
     if not dcg_max:
         return 0.
+    # DCG / IDCG
     return dcg_at_k(r, k, method) / dcg_max
 
 
 def recall_at_k(r, k, all_pos_num):
     # if all_pos_num == 0:
     #     return 0
+    # 상위 k개 중 맞춘 개수 / 전체 정답 개수
     r = np.asfarray(r)[:k]
     return np.sum(r) / all_pos_num
 
